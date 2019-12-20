@@ -1,0 +1,26 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1576778308000.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "1106841176",
+    "id" : "3678F1B3",
+    "lastKnownWriteTime" : 1576876910,
+    "last_content_update" : 1576876910816,
+    "path" : "~/Documents/programming/AH142 Final project/R analysis/analysis.R",
+    "project_path" : "analysis.R",
+    "properties" : {
+        "cursorPosition" : "178,0",
+        "scrollLine" : "172",
+        "tempName" : "Untitled1"
+    },
+    "read_only" : false,
+    "read_only_alternatives" : [
+    ],
+    "relative_order" : 1,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}

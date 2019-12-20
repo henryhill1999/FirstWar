@@ -1,0 +1,277 @@
+# QUESTION 1 
+
+nObs <- 999
+
+xvals <- rnorm(nObs, mean = 100, sd = 10)
+error <- rnorm(nObs, mean = 0, sd = 10)
+
+yvals <- xvals * 0.2 + 50 + error
+
+fit <- lm(yvals ~ xvals)
+
+summary(fit)
+
+slope <- substr(toString(coef(fit)[2]), 1, 5)
+inter <- toString(coef(fit)[1])
+
+xWithOutlier <- append(xvals, 400)
+yWithOutlier <- append(yvals, -50)
+
+fit2 <- lm(yWithOutlier ~ xWithOutlier)
+
+summary(fit2)
+
+slope2 <- substr(toString(coef(fit2)[2]), 1, 6)
+inter2 <- toString(coef(fit2)[1])
+
+plot(xvals, yvals, type = 'n', xlim = c(65, 410), ylim = c(-55,105))
+points(xvals, yvals, col = 'blue', pch = '+')
+points(400, -50, col = 'red', pch = '+')
+abline(fit, col = 'blue')
+abline(fit2, col = 'red')
+
+keyStr1 <- paste('Original data (slope = ', slope, ')')
+keyStr2 <- paste('Data with outlier (slope = ', slope2, ')')
+
+legend(x = 60, y = -30, c(keyStr1, keyStr2), lty = 1, col = c('blue','red'))
+
+# QUESTION 2
+
+library("Matching")
+library("arm")
+data(lalonde)
+
+#separate control group from the rest of the data
+control <-  lalonde[which(lalonde$treat == 0),]
+ncontrol <- nrow(control)
+agesqrd <- control$age*control$age
+control <- cbind(control, agesqrd)
+
+#calculate the medians and 75th percentiles
+educMed <- median(control$educ)
+re74Med <- median(control$re74)
+re75Med <- median(control$re75)
+
+educUQ <- quantile(control$educ, 0.75) 
+re74UQ <- quantile(control$re74, 0.75)
+re75UQ <- quantile(control$re75, 0.75)
+
+# create a matrix with rows differing as a function of age
+# such that we can use the inner product of this matrix
+# with the simulated coefficients to produce a vector
+# representing the predicted outcomes.
+
+inputMat50 <- matrix(nrow = 11, ncol = 39)
+inputMat75 <- matrix(nrow = 11, ncol = 39)
+
+for (age in 17:55) {
+  inputMat50[,age-16] <- c(1, age, educMed, re74Med, re75Med, age*age,
+                           educMed*re74Med, educMed*re75Med,
+                           age*re74Med, age*re75Med, 
+                           re74Med*re75Med)
+  
+  inputMat75[,age-16] <- c(1, age, educUQ, re74UQ, re75UQ, age*age,
+                           educUQ*re74UQ, educUQ*re75UQ,
+                           age*re74UQ, age*re75UQ, 
+                           re74UQ*re75UQ)
+}
+
+# create the linear model
+model <- lm(re78 ~ age + educ + re74 + re75 + agesqrd
+            + educ*re74 + educ*re75 
+            + age*re74 + age*re75 
+            + re74*re75, data = control)
+
+
+sims <- sim(model, 10000)
+storage50 <- matrix(nrow = 10000, ncol = 39)
+storage75 <- matrix(nrow = 10000, ncol = 39)
+
+upperPrediction50 <- matrix(nrow = 10000, ncol = 39)
+upperPrediction75 <- matrix(nrow = 10000, ncol = 39)
+
+lowerPrediction50 <- matrix(nrow = 10000, ncol = 39)
+lowerPrediction75 <- matrix(nrow = 10000, ncol = 39)
+
+for (i in 1:10000) {
+  storage50[i,] <- sims@coef[i,] %*% inputMat50
+  storage75[i,] <- sims@coef[i,] %*% inputMat75
+}
+
+points50 <- c()
+lowerBound50 <- c()
+upperBound50 <- c()
+
+points75 <- c()
+lowerBound75 <- c()
+upperBound75 <- c()
+
+predictionInts50 <- matrix(nrow = 39, ncol = 2)
+predictionInts75 <- matrix(nrow = 39, ncol = 2)
+
+# create the 95% confidence interval by finding the 2.5% and 97.5% quantiles
+for (i in 1:39){
+  lowerBound50[i] <- quantile(storage50[,i], 0.025)
+  points50[i] <- median(storage50[,i])
+  upperBound50[i] <- quantile(storage50[,i], 0.975)
+  
+  lowerBound75[i] <- quantile(storage75[,i], 0.025)
+  points75[i] <- median(storage75[,i])
+  upperBound75[i] <- quantile(storage75[,i], 0.975)
+}
+
+# plot the 95% confidence intervals
+xs <- c(17:55)
+
+plot(xs, points50, type = "n", xlim = c(15,60), ylim = c(0,13000),
+     main = "Confidence Intervals", xlab = "Age", ylab = "Real Income in 1978")
+
+points(xs, points50, col = 'red')
+points(xs, points75, col = 'blue')
+
+legend(15, y = 12000, c('Median', '75th Percentile'), lty = 1, col = c('red','blue'))
+
+for (i in 1:39) {
+  age = i+16
+  segments(
+    x0 = age-0.15,
+    y0 = lowerBound50[i],
+    x1 = age-0.15,
+    y1 = upperBound50[i],
+    lwd = 2,
+    col = rgb(1,0.4,0.4))
+  
+  segments(
+    x0 = age+0.15,
+    y0 = lowerBound75[i],
+    x1 = age+0.15,
+    y1 = upperBound75[i],
+    lwd = 2,
+    col = rgb(0.4,0.4,1))
+}
+
+# Now do all of that over, only with prediction intervals
+model <- lm(re78 ~ age + educ + re74 + re75 + agesqrd
+            + educ*re74 + educ*re75 
+            + age*re74 + age*re75 
+            + re74*re75, data = control)
+
+sims <- sim(model, 10000)
+storage50 <- matrix(nrow = 10000, ncol = 39)
+storage75 <- matrix(nrow = 10000, ncol = 39)
+
+upperPrediction50 <- matrix(nrow = 10000, ncol = 39)
+upperPrediction75 <- matrix(nrow = 10000, ncol = 39)
+
+lowerPrediction50 <- matrix(nrow = 10000, ncol = 39)
+lowerPrediction75 <- matrix(nrow = 10000, ncol = 39)
+
+for (i in 1:10000) {
+  # the difference is here, note the random error term, according to the
+  # simulated sigmas
+  storage50[i,] <- sims@coef[i,] %*% inputMat50 + rnorm(39, 0, sims@sigma[i])
+  
+  storage75[i,] <- sims@coef[i,] %*% inputMat75 + rnorm(39, 0, sims@sigma[i])
+}
+
+points50 <- c()
+lowerBound50 <- c()
+upperBound50 <- c()
+
+points75 <- c()
+lowerBound75 <- c()
+upperBound75 <- c()
+
+for (i in 1:39){
+  lowerBound50[i] <- quantile(storage50[,i], 0.025)
+  points50[i] <- median(storage50[,i])
+  upperBound50[i] <- quantile(storage50[,i], 0.975)
+  
+  lowerBound75[i] <- quantile(storage75[,i], 0.025)
+  points75[i] <- median(storage75[,i])
+  upperBound75[i] <- quantile(storage75[,i], 0.975)
+}
+
+# now plot the prediction intervals
+xs <- c(17:55)
+
+plot(xs, points50, type = "n", xlim = c(15,60), ylim = c(-10000,25000),
+     main = "Prediction Intervals", xlab = "Age", ylab = "Real Income in 1978")
+
+points(xs, points50, col = 'red')
+points(xs, points75, col = 'blue')
+
+legend(15, y = 25000, c('Median', '75th Percentile'), lty = 1, col = c('red','blue'))
+
+for (i in 1:39) {
+  age = i+16
+  segments(
+    x0 = age-0.15,
+    y0 = lowerBound50[i],
+    x1 = age-0.15,
+    y1 = upperBound50[i],
+    lwd = 2,
+    col = rgb(1,0.4,0.4))
+  
+  segments(
+    x0 = age+0.15,
+    y0 = lowerBound75[i],
+    x1 = age+0.15,
+    y1 = upperBound75[i],
+    lwd = 2,
+    col = rgb(0.4,0.4,1))
+}
+
+# QUESTION 3 
+
+data("PlantGrowth")
+
+foo <- PlantGrowth[-which(PlantGrowth$group == 'trt2'),]
+foo$group <- ifelse(foo$group=='ctrl',0,1)
+model <- lm(weight ~ group, data = foo)
+
+nFoo <- nrow(foo)
+
+storage <- c()
+
+for (i in 1:10000){
+  samp <- foo[sample(nFoo,nFoo, replace = TRUE),]
+  storage[i] <- lm(weight ~ group, data = samp)$coef[2]
+}
+
+quantile(storage,c(0.025,0.975))
+confint(lm(weight ~ group, data = foo))
+
+hist(storage, main = 'Distribution of sample slopes', xlab = 'Sample Slope')
+
+# QUESTION 4 
+
+rSquared <- function(y, yhat) {
+  avg <- rep(mean(y),length(y))
+  ssTotal <- sum((y - avg)^2)
+  ssRes <- sum((y - yhat)^2)
+  return (1 - ssRes/ssTotal)
+}
+
+model <- lm(weight ~ group, data = foo)
+yhat <- predict(model,foo)
+summary(model)
+rSquared(foo$weight,yhat)
+
+# QUESTION 5
+
+library(foreign)
+nsw <- read.dta('~/Downloads/nsw.dta')
+
+foo <- nsw[,-1]
+nFoo <- nrow(foo)
+
+storage <- c()
+
+for (i in 1:10000) {
+  samp <- foo[sample(nFoo,nFoo, replace = TRUE),]
+  storage[i] <- lm(re78 ~ treat, data = samp)$coef[2]
+}
+
+quantile(storage, c(0.025, 0.975))
+confint(lm(re78 ~ treat, data = foo))
